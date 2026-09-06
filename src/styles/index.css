@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-bg-base text-text-primary font-sans;
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-bg-elevated;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border-default rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-border-strong;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-1 ring-accent-primary ring-offset-1 ring-offset-bg-base;
+  }
+}
+
+@layer utilities {
+  .text-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
