@@ -5,6 +5,11 @@ import type { Group } from 'three'
 import { SAMPLE_CONTAINERS } from '@/data/containers'
 import type { Container, ContainerStatus } from '@/types/container'
 import { useAppStore } from '@/store/appStore'
+import { RTG_EQUIPMENT } from '@/data/equipment'
+import RTGCrane from './components/RTGCrane'
+import { JNPA_TERMINALS } from '@/data/jnpaLayout'
+import Terminal3D from './components/Terminal3D'
+import YardBlock3D from './components/YardBlock3D'
 
 // ── Status colour map — new 9-value operational vocabulary ───────────────────
 const STATUS_COLORS: Record<ContainerStatus, string> = {
@@ -41,10 +46,17 @@ function ContainerBox({ container, isSelected, onClick }: ContainerBoxProps) {
   const h = container.type.includes('HC') ? 0.58 : 0.5
   const d = 0.45
 
-  // Yard position
-  const colX = (container.column - 1) * 1.45
-  const rowZ = (container.row - 1) * 1.0
-  const levelY = (container.level - 1) * (h + 0.05) + h / 2
+ // Yard position
+// Containers are arranged into realistic rows and columns
+// with spacing for RTG/truck operating lanes.
+
+const containerGapX = 2.2
+const containerGapZ = 1.4
+
+const colX = (container.column - 1) * containerGapX
+const rowZ = (container.row - 1) * containerGapZ
+const levelY =
+  (container.level - 1) * (h + 0.05) + h / 2
 
   const baseColor = STATUS_COLORS[container.status]
 
@@ -225,7 +237,10 @@ function Scene({
 }) {
   // Default to NSICT (largest) when 'all' is selected
   const terminalCode = activeTerminal === 'all' ? 'NSICT' : activeTerminal
-  const terminalContainers = SAMPLE_CONTAINERS.filter(c => c.terminal === terminalCode)
+
+const terminalContainers = SAMPLE_CONTAINERS.filter(
+  c => c.terminal === terminalCode
+)
 
   // Group by block, extract block number for X offset
   const blockMap = new Map<string, Container[]>()
@@ -237,27 +252,24 @@ function Scene({
 
   const blockEntries = [...blockMap.entries()].sort((a, b) => a[0].localeCompare(b[0]))
 
-  const blocksPerRow = 3
-const blockWidth = 24
-const blockDepth = 14
-const aisleX = 4
-const aisleZ = 5
 
-const numberOfRows = Math.ceil(blockEntries.length / blocksPerRow)
+const yardWidth = 220
+const yardDepth = 110
 
-const gridWidth =
-  blocksPerRow * blockWidth +
-  (blocksPerRow - 1) * aisleX
-
-const gridDepth =
-  numberOfRows * blockDepth +
-  (numberOfRows - 1) * aisleZ
-
-const gridCenterX = gridWidth / 2
-const gridCenterZ = gridDepth / 2
+const gridCenterX = yardWidth / 2
+const gridCenterZ = yardDepth / 2
 
   return (
     <>
+      {/* JNPA terminal footprints */}
+      {JNPA_TERMINALS
+  .filter(terminal => terminal.type === 'container')
+  .map(terminal => (
+    <Terminal3D
+      key={terminal.id}
+      terminal={terminal}
+    />
+  ))}
       {/* Lighting */}
       <ambientLight intensity={0.55} />
       <directionalLight
@@ -269,10 +281,24 @@ const gridCenterZ = gridDepth / 2
       <directionalLight position={[-10, 10, -8]} intensity={0.25} color="#7bafd4" />
       <hemisphereLight args={['#dbeafe', '#f0fdf4', 0.3]} />
 
+      {/* Shared port ground */}
+<mesh
+  rotation={[-Math.PI / 2, 0, 0]}
+  position={[110, -0.08, 55]}
+  receiveShadow
+>
+  <planeGeometry args={[340, 220]} />
+  <meshStandardMaterial
+    color="#64748b"
+    roughness={0.95}
+    metalness={0.05}
+  />
+</mesh>
+
       {/* Ground grid */}
       <Grid
-        args={[gridWidth + 20, gridDepth + 20]}
-  position={[gridCenterX, -0.01, gridCenterZ]}
+        args={[yardWidth + 20, yardDepth + 20]}
+        position={[gridCenterX, -0.01, gridCenterZ]}
         cellSize={1}
         cellThickness={0.3}
         cellColor="#cbd5e1"
@@ -282,27 +308,131 @@ const gridCenterZ = gridDepth / 2
         fadeDistance={60}
         fadeStrength={1}
       />
+      {/* Main yard roads */}
+<group>
+  {/* Horizontal road */}
+  <mesh
+    position={[yardWidth / 2, 0.03, 42]}
+    receiveShadow
+  >
+    <boxGeometry args={[yardWidth, 0.06, 6]} />
+    <meshStandardMaterial
+      color="#263238"
+      roughness={0.95}
+    />
+  </mesh>
 
-      {/* Container blocks */}
+  {/* Horizontal dashed lane markings */}
+{Array.from({ length: 18 }).map((_, index) => (
+  <mesh
+    key={`horizontal-dash-${index}`}
+    position={[-100 + index * 12, 0.08, 42]}
+  >
+    <boxGeometry args={[6, 0.025, 0.12]} />
+    <meshStandardMaterial color="#f8fafc" />
+  </mesh>
+))}
+
+  {/* Horizontal road marking */}
+  <mesh position={[yardWidth / 2, 0.07, 42]}>
+    <boxGeometry args={[yardWidth, 0.02, 0.12]} />
+    <meshStandardMaterial color="#facc15" />
+  </mesh>
+
+  {/* Vertical road */}
+  <mesh
+    position={[92, 0.04, yardDepth / 2]}
+    receiveShadow
+  >
+    <boxGeometry args={[6, 0.07, yardDepth]} />
+    <meshStandardMaterial
+      color="#263238"
+      roughness={0.95}
+    />
+  </mesh>
+
+  {/* Vertical road marking */}
+  <mesh position={[92, 0.08, yardDepth / 2]}>
+    <boxGeometry args={[0.12, 0.02, yardDepth]} />
+    <meshStandardMaterial color="#facc15" />
+  </mesh>
+
+  {/* Vertical dashed lane markings */}
+{Array.from({ length: 9 }).map((_, index) => (
+  <mesh
+    key={`vertical-dash-${index}`}
+    position={[92, 0.09, 5 + index * 12]}
+  >
+    <boxGeometry args={[0.12, 0.025, 6]} />
+    <meshStandardMaterial color="#f8fafc" />
+  </mesh>
+))}
+
+</group>
+
+            {/* Container blocks inside the selected terminal */}
       {blockEntries.map(([block, containers], i) => {
-  const blocksPerRow = 3
+        const terminal = JNPA_TERMINALS.find(
+          t => t.id === terminalCode
+        )
 
-  const blockRow = Math.floor(i / blocksPerRow)
-  const blockColumn = i % blocksPerRow
+        if (!terminal) return null
 
-  const blockWidth = 24
-  const blockDepth = 14
+        // Leave space near the quay and terminal boundary
+        const marginX = 4
+        const marginZ = 7
 
-  const aisleX = 4
-  const aisleZ = 5
+        // Space occupied by one container block
+        const blockSpacingX = 15
+        const blockSpacingZ = 10
 
-  const offsetX =
-    blockColumn * (blockWidth + aisleX)
+        // Number of blocks that can fit across this terminal
+        const blocksPerRow = Math.max(
+          1,
+          Math.floor(
+            (terminal.width - marginX * 2) / blockSpacingX
+          )
+        )
 
-  const offsetZ =
-  blockRow * (blockDepth + aisleZ)
+        const blockRow = Math.floor(i / blocksPerRow)
+        const blockColumn = i % blocksPerRow
 
-  return (
+        const offsetX =
+          terminal.x +
+          marginX +
+          blockColumn * blockSpacingX
+
+        const offsetZ =
+          terminal.z +
+          marginZ +
+          blockRow * blockSpacingZ
+          
+          const maxColumn = Math.max(
+  ...containers.map(c => c.column)
+)
+
+const maxRow = Math.max(
+  ...containers.map(c => c.row)
+)
+
+const containerSpacingX = 2.2
+const containerSpacingZ = 1.4
+
+const blockWidth =
+  maxColumn * containerSpacingX + 2
+
+const blockDepth =
+  maxRow * containerSpacingZ + 2
+        return (
+          <>
+  <YardBlock3D
+  block={block}
+  width={blockWidth}
+  depth={blockDepth}
+  x={offsetX + blockWidth / 2}
+  z={offsetZ + blockDepth / 2}
+/>
+
     <BlockGroup
       key={block}
       block={block}
@@ -312,8 +442,82 @@ const gridCenterZ = gridDepth / 2
       offsetX={offsetX}
       offsetZ={offsetZ}
     />
+  </>
+)
+      })}
+{RTG_EQUIPMENT.map((rtg) => {
+  const blockIndex = blockEntries.findIndex(
+    ([block]) => block === rtg.block
+  )
+
+  if (blockIndex === -1) return null
+
+  const terminal = JNPA_TERMINALS.find(
+    t => t.id === terminalCode
+  )
+
+  if (!terminal) return null
+
+  const marginX = 4
+  const marginZ = 7
+  const blockSpacingX = 15
+  const blockSpacingZ = 10
+
+  const blocksPerRow = Math.max(
+    1,
+    Math.floor(
+      (terminal.width - marginX * 2) / blockSpacingX
+    )
+  )
+
+  const blockRow = Math.floor(blockIndex / blocksPerRow)
+  const blockColumn = blockIndex % blocksPerRow
+
+  const maxColumn = Math.max(
+    ...SAMPLE_CONTAINERS
+      .filter(c => c.block === rtg.block)
+      .map(c => c.column)
+  )
+
+  const maxRow = Math.max(
+    ...SAMPLE_CONTAINERS
+      .filter(c => c.block === rtg.block)
+      .map(c => c.row)
+  )
+
+  const containerSpacingX = 2.2
+  const containerSpacingZ = 1.4
+
+  const blockWidth =
+    maxColumn * containerSpacingX + 2
+
+  const blockDepth =
+    maxRow * containerSpacingZ + 2
+
+  const offsetX =
+    terminal.x +
+    marginX +
+    blockColumn * blockSpacingX
+
+  const offsetZ =
+    terminal.z +
+    marginZ +
+    blockRow * blockSpacingZ
+    const rtgX = offsetX + blockWidth / 2
+    const rtgZ = offsetZ + blockDepth + 2
+
+  return (
+    <RTGCrane
+      key={rtg.id}
+      equipment={{
+  ...rtg,
+  x: rtgX,
+  z: rtgZ,
+}}
+    />
   )
 })}
+
 
       {/* Orbit / pan / zoom */}
       <OrbitControls
@@ -322,8 +526,8 @@ const gridCenterZ = gridDepth / 2
         enableRotate
         maxPolarAngle={Math.PI / 2.05}
         minDistance={5}
-        maxDistance={60}
-        target={[gridCenterX, 0, 4]}
+        maxDistance={220}
+        target={[110, 0, 55]}
       />
     </>
   )
@@ -402,7 +606,12 @@ export default function DigitalTwinViewport() {
         style={{ width: '100%', height: '100%' }}
         onPointerMissed={() => setSelected(null)}
       >
-        <PerspectiveCamera makeDefault position={[20, 14, 22]} fov={48} />
+        <color attach="background" args={['#dbe4ee']} />
+        <PerspectiveCamera
+  makeDefault
+  position={[115, 95, 135]}
+  fov={50}
+/>
         <Scene selectedId={selectedId} onSelect={setSelected} activeTerminal={activeTerminal} />
       </Canvas>
 
